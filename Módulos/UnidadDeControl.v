@@ -1,179 +1,179 @@
 module control_unit (
-    input  logic        clk,
-    input  logic        reset,
-    input  logic [31:0] instr,
-    input  logic        Zero,
-    input  logic        Less,
-
-    output logic        PCWrite,
-    output logic        PCWriteCond,
-    output logic        IRWrite,
-    output logic        RegWrite,
-    output logic        MemRead,
-    output logic        MemWrite,
-    output logic        ByteEn,
-
-    output logic        ALUSrcA,
-    output logic [1:0]  ALUSrcB,
-    output logic [2:0]  ALUCtrl,
-
-    output logic [1:0]  ResultSrc,
-    output logic [2:0]  ImmSrc,
-    output logic [1:0]  PCSource
+    input        clk,
+    input        reset,
+    input  [31:0] instr,
+    input        Zero,
+    input        Less,
+ 
+    output reg   PCWrite,
+    output reg   IRWrite,
+    output reg   RegWrite,
+    output reg   MemRead,
+    output reg   MemWrite,
+    output reg   ByteEn,
+ 
+    output reg   ALUSrcA,
+    output reg [1:0] ALUSrcB,
+    output reg [2:0] ALUCtrl,
+ 
+    output reg [1:0] ResultSrc,
+    output reg [2:0] ImmSrc,
+    output reg [1:0] PCSource
 );
-
-    // -------------------------
+ 
+    // -----------------------------
     // Opcode extraction
-    // -------------------------
-    logic [6:0] opcode;
+    // -----------------------------
+    wire [6:0] opcode;
     assign opcode = instr[6:0];
-
-    // -------------------------
-    // FSM States
-    // -------------------------
-    typedef enum logic [3:0] {
-        S_FETCH      = 4'd0,
-        S_DECODE     = 4'd1,
-        S_EXEC_I     = 4'd2,
-        S_EXEC_U     = 4'd3,
-        S_MEM_ADDR   = 4'd4,
-        S_MEM_READ   = 4'd5,
-        S_MEM_WRITE  = 4'd6,
-        S_WB_ALU     = 4'd7,
-        S_WB_LW      = 4'd8,
-        S_BRANCH     = 4'd9,
-        S_JUMP       = 4'd10
-    } state_t;
-
-    state_t state, next_state;
-
-    // -------------------------
+ 
+    // -----------------------------
+    // FSM states
+    // -----------------------------
+    parameter S_FETCH      = 4'd0,
+              S_DECODE     = 4'd1,
+              S_EXEC_I     = 4'd2,
+              S_MEM_ADDR   = 4'd3,
+              S_MEM_READ   = 4'd4,
+              S_MEM_WRITE  = 4'd5,
+              S_WB_ALU     = 4'd6,
+              S_WB_MEM     = 4'd7,
+              S_BRANCH     = 4'd8,
+              S_JUMP       = 4'd9;
+ 
+    reg [3:0] state, next_state;
+ 
+    // -----------------------------
     // State register
-    // -------------------------
-    always_ff @(posedge clk or posedge reset) begin
+    // -----------------------------
+    always @(posedge clk or posedge reset) begin
         if (reset)
             state <= S_FETCH;
         else
             state <= next_state;
     end
-
-    // -------------------------
+ 
+    // -----------------------------
     // Next-state logic
-    // -------------------------
-    always_comb begin
-        next_state = state;
-
+    // -----------------------------
+    always @(*) begin
         case (state)
-
+ 
             S_FETCH:
                 next_state = S_DECODE;
-
+ 
             S_DECODE: begin
                 case (opcode)
-                    7'b0010011: next_state = S_EXEC_I;    // addi, andi, slli
-                    7'b0110111: next_state = S_EXEC_U;    // lui
-                    7'b0000011: next_state = S_MEM_ADDR;  // lw
-                    7'b0100011: next_state = S_MEM_ADDR;  // sw, sb
-                    7'b1100011: next_state = S_BRANCH;    // bne, bge
-                    7'b1101111: next_state = S_JUMP;      // jal
+                    7'b0010011: next_state = S_EXEC_I;     // addi, andi, slli
+                    7'b0000011: next_state = S_MEM_ADDR;   // lw
+                    7'b0100011: next_state = S_MEM_ADDR;   // sw, sb
+                    7'b1100011: next_state = S_BRANCH;     // bge, bne
+                    7'b1101111: next_state = S_JUMP;       // jal
                     default:    next_state = S_FETCH;
                 endcase
             end
-
-            S_EXEC_I,
-            S_EXEC_U:
+ 
+            S_EXEC_I:
                 next_state = S_WB_ALU;
-
+ 
             S_MEM_ADDR:
                 if (opcode == 7'b0000011)
                     next_state = S_MEM_READ;
                 else
                     next_state = S_MEM_WRITE;
-
+ 
             S_MEM_READ:
-                next_state = S_WB_LW;
-
+                next_state = S_WB_MEM;
+ 
             S_MEM_WRITE:
                 next_state = S_FETCH;
-
-            S_WB_ALU,
-            S_WB_LW,
-            S_BRANCH,
+ 
+            S_WB_ALU:
+                next_state = S_FETCH;
+ 
+            S_WB_MEM:
+                next_state = S_FETCH;
+ 
+            S_BRANCH:
+                next_state = S_FETCH;
+ 
             S_JUMP:
                 next_state = S_FETCH;
-
+ 
             default:
                 next_state = S_FETCH;
+ 
         endcase
     end
-
-    // -------------------------
-    // Output logic (control signals)
-    // -------------------------
-    always_comb begin
-        // Defaults
-        PCWrite     = 0;
-        PCWriteCond = 0;
-        IRWrite     = 0;
-        RegWrite    = 0;
-        MemRead     = 0;
-        MemWrite    = 0;
-        ByteEn      = 0;
-
-        ALUSrcA     = 0;
-        ALUSrcB     = 2'b00;
-        ALUCtrl     = 3'b000;
-
-        ResultSrc   = 2'b00;
-        ImmSrc      = 3'b000;
-        PCSource    = 2'b00;
-
+ 
+    // -----------------------------
+    // Output logic
+    // -----------------------------
+    always @(*) begin
+        // Default values
+        PCWrite   = 0;
+        IRWrite   = 0;
+        RegWrite  = 0;
+        MemRead   = 0;
+        MemWrite  = 0;
+        ByteEn    = 0;
+        ALUSrcA   = 0;
+        ALUSrcB   = 2'b00;
+        ALUCtrl   = 3'b000;
+        ResultSrc = 2'b00;
+        ImmSrc    = 3'b000;
+        PCSource  = 2'b00;
+ 
         case (state)
-
+ 
             // -------------------------
             // FETCH
             // -------------------------
             S_FETCH: begin
-                IRWrite  = 1;
-                ALUSrcA  = 0;          // PC
-                ALUSrcB  = 2'b01;      // +4
-                ALUCtrl  = 3'b000;     // ADD
-                PCWrite  = 1;
-                PCSource = 2'b00;      // ALU result
+                IRWrite = 1;
+                PCWrite = 1;
+                ALUSrcA = 0;        // PC
+                ALUSrcB = 2'b01;    // +4
+                ALUCtrl = 3'b000;   // ADD
+                PCSource = 2'b00;   // ALU result
             end
-
+ 
             // -------------------------
-            // EXECUTE I-type
+            // DECODE (no control action)
+            // -------------------------
+            S_DECODE: begin
+                // Just decode
+            end
+ 
+            // -------------------------
+            // EXECUTE I-TYPE
             // -------------------------
             S_EXEC_I: begin
                 ALUSrcA = 1;
-                ALUSrcB = 2'b10;       // immediate
-                ImmSrc  = 3'b000;      // I-type
+                ALUSrcB = 2'b10;
+                ALUCtrl = (instr[14:12] == 3'b000) ? 3'b000 : // addi
+                          (instr[14:12] == 3'b111) ? 3'b010 : // andi
+                          3'b011;                              // slli
+                ImmSrc  = 3'b000;
             end
-
-            // -------------------------
-            // EXECUTE U-type (lui)
-            // -------------------------
-            S_EXEC_U: begin
-                ImmSrc = 3'b011;       // U-type
-            end
-
+ 
             // -------------------------
             // MEMORY ADDRESS CALC
             // -------------------------
             S_MEM_ADDR: begin
                 ALUSrcA = 1;
                 ALUSrcB = 2'b10;
-                ImmSrc  = 3'b001;      // S-type
+                ALUCtrl = 3'b000;
+                ImmSrc  = (opcode == 7'b0100011) ? 3'b001 : 3'b000;
             end
-
+ 
             // -------------------------
             // MEMORY READ
             // -------------------------
             S_MEM_READ: begin
                 MemRead = 1;
             end
-
+ 
             // -------------------------
             // MEMORY WRITE
             // -------------------------
@@ -181,48 +181,49 @@ module control_unit (
                 MemWrite = 1;
                 ByteEn   = (instr[14:12] == 3'b000); // sb
             end
-
+ 
             // -------------------------
-            // WRITE BACK ALU
+            // WRITE BACK FROM ALU
             // -------------------------
             S_WB_ALU: begin
                 RegWrite  = 1;
-                ResultSrc = 2'b00;     // ALUOut
+                ResultSrc = 2'b00;
             end
-
+ 
             // -------------------------
-            // WRITE BACK LOAD
+            // WRITE BACK FROM MEMORY
             // -------------------------
-            S_WB_LW: begin
+            S_WB_MEM: begin
                 RegWrite  = 1;
-                ResultSrc = 2'b01;     // MDR
+                ResultSrc = 2'b01;
             end
-
+ 
             // -------------------------
             // BRANCH
             // -------------------------
             S_BRANCH: begin
-                ALUSrcA     = 1;
-                ALUSrcB     = 2'b00;
-                ALUCtrl     = 3'b001;  // SUB
-                PCSource    = 2'b01;   // ALUOut
-                ImmSrc      = 3'b010;  // B-type
-
-                if ((instr[14:12] == 3'b001 && !Zero) || // bne
-                    (instr[14:12] == 3'b101 && Less))   // bge
-                    PCWrite = 1;
+                ALUSrcA  = 1;
+                ALUSrcB  = 2'b10;
+                ALUCtrl  = 3'b001;
+                ImmSrc   = 3'b010;
+                if (Less || !Zero) begin
+                    PCWrite  = 1;
+                    PCSource = 2'b10;
+                end
             end
-
+ 
             // -------------------------
-            // JUMP
+            // JUMP (jal)
             // -------------------------
             S_JUMP: begin
-                PCWrite  = 1;
-                PCSource = 2'b10;      // PC + immediate
-                ImmSrc   = 3'b100;     // J-type
+                RegWrite  = 1;
+                ResultSrc = 2'b10; // PC+4
+                PCWrite   = 1;
+                PCSource  = 2'b10;
+                ImmSrc    = 3'b100;
             end
-
+ 
         endcase
     end
-
+ 
 endmodule
