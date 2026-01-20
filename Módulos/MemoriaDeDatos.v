@@ -1,24 +1,27 @@
 module data_mem (
-    input  logic        clk,
-    input  logic        MemRead,
-    input  logic        MemWrite,
-    input  logic        ByteEn,
-    input  logic [31:0] addr,
-    input  logic [31:0] write_data,
-    output logic [31:0] read_data
+    input        clk,
+    input        MemRead,
+    input        MemWrite,
+    input        ByteEn,
+    input  [31:0] addr,
+    input  [31:0] write_data,
+    output [31:0] read_data
 );
-
-    logic [31:0] mem [0:255];
-
-    always_ff @(posedge clk) begin
+ 
+    // 256 words of data memory
+    reg [31:0] mem [0:255];
+ 
+    // Write operation (synchronous)
+    always @(posedge clk) begin
         if (MemWrite) begin
             if (ByteEn)
-                mem[addr[9:2]][7:0] <= write_data[7:0];
+                mem[addr[9:2]][7:0] <= write_data[7:0]; // sb
             else
-                mem[addr[9:2]] <= write_data;
+                mem[addr[9:2]] <= write_data;           // sw
         end
     end
-
+ 
+    // Read operation (combinational)
     assign read_data = (MemRead) ? mem[addr[9:2]] : 32'b0;
-
+ 
 endmodule
