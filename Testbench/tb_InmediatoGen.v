@@ -1,33 +1,35 @@
+`timescale 1ns / 1ps
+ 
 module tb_imm_gen;
-
-    logic [31:0] instr;
-    logic [2:0] ImmSrc;
-    logic [31:0] imm_ext;
-
+ 
+    reg  [31:0] instr;
+    reg  [2:0]  ImmSrc;
+    wire [31:0] imm_out;
+ 
     imm_gen DUT (
         .instr(instr),
         .ImmSrc(ImmSrc),
-        .imm_ext(imm_ext)
+        .imm_out(imm_out)
     );
-
+ 
     initial begin
-        // I-Type (addi)
-        instr  = 32'h00178793; // addi a5,a5,1
-        ImmSrc = 3'b000; #10;
-
-        // S-Type (sw)
-        instr  = 32'hfef42623;
-        ImmSrc = 3'b001; #10;
-
-        // B-Type (bge)
-        instr  = 32'hfce7d0e3;
-        ImmSrc = 3'b010; #10;
-
-        // U-Type (lui)
-        instr  = 32'h0000c7b7;
-        ImmSrc = 3'b011; #10;
-
+        instr = 32'h00000013;
+        ImmSrc = 3'b000; // I-type
+        #10;
+ 
+        instr = 32'h00F70793; // andi
+        ImmSrc = 3'b000;
+        #10;
+ 
+        instr = 32'hFEF42623; // sw
+        ImmSrc = 3'b001;
+        #10;
+ 
+        instr = 32'hFCE7D0E3; // bge
+        ImmSrc = 3'b010;
+        #10;
+ 
         $stop;
     end
-
+ 
 endmodule
