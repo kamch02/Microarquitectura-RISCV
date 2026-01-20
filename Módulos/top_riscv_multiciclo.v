@@ -116,7 +116,7 @@ module top_riscv_multiciclo (
     imm_gen IMM (
         .instr(IR),
         .ImmSrc(ImmSrc),
-        .imm_out(ImmExt)
+        .imm_ext(ImmExt)
     );
  
     // -------------------------
@@ -136,7 +136,7 @@ module top_riscv_multiciclo (
     // -------------------------
     // ALU
     // -------------------------
-    alu ALU (
+    ALU ALU_inst (
         .A(ALU_A),
         .B(ALU_B),
         .ALUCtrl(ALUCtrl),
