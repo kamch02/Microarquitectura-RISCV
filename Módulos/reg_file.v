@@ -1,3 +1,5 @@
+`timescale 1ns / 1ps
+
 module reg_file (
     input        clk,
     input        RegWrite,
@@ -8,19 +10,22 @@ module reg_file (
     output [31:0] rd1,
     output [31:0] rd2
 );
- 
+
     // 32 registers of 32 bits
     reg [31:0] regs [0:31];
- 
+    integer j;
+    initial begin
+        for (j=0; j<32; j=j+1) regs[j] = 32'b0;
+        regs[2] = 32'h00000100; // x2 = sp en una zona válida
+    end
     // Read ports (combinational)
     assign rd1 = (rs1 == 5'd0) ? 32'b0 : regs[rs1];
     assign rd2 = (rs2 == 5'd0) ? 32'b0 : regs[rs2];
- 
+
     // Write port (synchronous)
     always @(posedge clk) begin
         if (RegWrite && (rd != 5'd0))
             regs[rd] <= wd;
     end
- 
+
 endmodule
- 

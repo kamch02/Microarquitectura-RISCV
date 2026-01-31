@@ -56,12 +56,12 @@ module top_riscv_multiciclo (
     // -------------------------
     reg [31:0] A, B, ALUOut, MDR;
 
+    reg [31:0] PC_fetch;
     // -------------------------
     // PC logic
     // -------------------------
     assign PC_next = (PCSource == 2'b00) ? ALU_result :
-                     (PCSource == 2'b10) ? ALUOut :
-                     PC;
+                 (PCSource == 2'b10) ? (PC_fetch + ImmExt) : PC;
 
     always @(posedge clk or posedge reset) begin
         if (reset)
@@ -74,8 +74,10 @@ module top_riscv_multiciclo (
     // Instruction Register
     // -------------------------
     always @(posedge clk) begin
-        if (IRWrite)
+        if (IRWrite) begin
             IR <= instr;
+            PC_fetch <= PC;   // base correcta para PC-relative
+        end
     end
 
     // -------------------------
@@ -171,7 +173,7 @@ module top_riscv_multiciclo (
     // MDR register
     // -------------------------
     always @(posedge clk) begin
-        MDR <= mem_data;
+        if (MemRead) MDR <= mem_data;
     end
 
     // -------------------------
