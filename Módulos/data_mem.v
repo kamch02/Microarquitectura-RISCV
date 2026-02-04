@@ -1,5 +1,3 @@
-`timescale 1ns / 1ps
-
 module data_mem (
     input        clk,
     input        MemRead,
@@ -10,26 +8,28 @@ module data_mem (
     output [31:0] read_data
 );
 
-    // 256 words of data memory
+    // 256 palabras en la memoria
     reg [31:0] mem [0:255];
     
+    //Inicialización de todos los registros en 0
     integer i;
     initial begin
         for (i=0; i<256; i=i+1) mem[i] = 32'b0;
     end
+    //--------------------------------------
     
-    // Write operation (synchronous)
+    
+    // Funciones de escritura en la memoria
     always @(posedge clk) begin
         if (MemWrite) begin
             if (ByteEn)
-                mem[addr[9:2]][7:0] <= write_data[7:0]; // sb
+                mem[addr[9:2]][7:0] <= write_data[7:0]; // SB (guarda byte)
             else
-                mem[addr[9:2]] <= write_data;           // sw
+                mem[addr[9:2]] <= write_data;           // SW (guarda palabra)
         end
     end
 
-    // Read operation (combinational)
+    // Si está activado MemRead, la leé
     assign read_data = (MemRead) ? mem[addr[9:2]] : 32'b0;
 
 endmodule
-
