@@ -24,13 +24,13 @@ module control_unit (
 );
 
     // -----------------------------
-    // Opcode extraction
+    // se extrae d ela instrucción el opcode
     // -----------------------------
     wire [6:0] opcode;
     assign opcode = instr[6:0];
 
     // -----------------------------
-    // FSM states
+    // Estados de la FSM
     // -----------------------------
     parameter S_FETCH      = 4'd0,
               S_DECODE     = 4'd1,
@@ -42,12 +42,12 @@ module control_unit (
               S_WB_MEM     = 4'd7,
               S_BRANCH     = 4'd8,
               S_JUMP       = 4'd9;
+              // No hay estado para las instrucciones R porque no se usan
 
     reg [3:0] state, next_state;
 
-    // -----------------------------
-    // State register
-    // -----------------------------
+    // Resgitro de estado activo y siguiente
+
     always @(posedge clk or posedge reset) begin
         if (reset)
             state <= S_FETCH;
@@ -55,9 +55,7 @@ module control_unit (
             state <= next_state;
     end
 
-    // -----------------------------
-    // Next-state logic
-    // -----------------------------
+    // Lógica de estado siguientee
     always @(*) begin
         case (state)
 
@@ -108,11 +106,10 @@ module control_unit (
         endcase
     end
 
-    // -----------------------------
-    // Output logic
-    // -----------------------------
+
+    // Lógicas de salida
     always @(*) begin
-        // Default values
+        // Inicialización de las señales en 0
         PCWrite   = 0;
         IRWrite   = 0;
         RegWrite  = 0;
@@ -128,40 +125,34 @@ module control_unit (
 
         case (state)
 
-            // -------------------------
             // FETCH
-            // -------------------------
             S_FETCH: begin
                 IRWrite = 1;
                 PCWrite = 1;
+                
+                //Proceso de la suma al PC
                 ALUSrcA = 0;        // PC
                 ALUSrcB = 2'b01;    // +4
                 ALUCtrl = 3'b000;   // ADD
-                PCSource = 2'b00;   // ALU result
+                PCSource = 2'b00;   // resultado de la ALU
             end
 
-            // -------------------------
-            // DECODE (no control action)
-            // -------------------------
+            // DECODE
             S_DECODE: begin
-                // Just decode
+                // Sin señales de salida
             end
 
-            // -------------------------
             // EXECUTE I-TYPE
-            // -------------------------
             S_EXEC_I: begin
                 ALUSrcA = 1;
                 ALUSrcB = 2'b10;
-                ALUCtrl = (instr[14:12] == 3'b000) ? 3'b000 : // addi
-                          (instr[14:12] == 3'b111) ? 3'b010 : // andi
-                          3'b011;                              // slli
+                ALUCtrl = (instr[14:12] == 3'b000) ? 3'b000 :  // ADDI
+                          (instr[14:12] == 3'b111) ? 3'b010 :  // ANDI
+                          3'b011;                              // SLLI
                 ImmSrc  = 3'b000;
             end
 
-            // -------------------------
             // MEMORY ADDRESS CALC
-            // -------------------------
             S_MEM_ADDR: begin
                 ALUSrcA = 1;
                 ALUSrcB = 2'b10;
@@ -169,60 +160,68 @@ module control_unit (
                 ImmSrc  = (opcode == 7'b0100011) ? 3'b001 : 3'b000;
             end
 
-            // -------------------------
             // MEMORY READ
-            // -------------------------
             S_MEM_READ: begin
                 MemRead = 1;
             end
 
-            // -------------------------
             // MEMORY WRITE
-            // -------------------------
             S_MEM_WRITE: begin
                 MemWrite = 1;
-                ByteEn   = (instr[14:12] == 3'b000); // sb
+                ByteEn   = (instr[14:12] == 3'b000); // SB
             end
 
-            // -------------------------
             // WRITE BACK FROM ALU
-            // -------------------------
             S_WB_ALU: begin
                 RegWrite  = 1;
                 ResultSrc = 2'b00;
             end
 
-            // -------------------------
             // WRITE BACK FROM MEMORY
-            // -------------------------
             S_WB_MEM: begin
                 RegWrite  = 1;
                 ResultSrc = 2'b01;
             end
 
-            // -------------------------
-            // BRANCH
-            // -------------------------
+            // BRANCH (bge, bne)
             S_BRANCH: begin
-                ALUSrcA  = 1;
-                ALUSrcB  = 2'b10;
-                ALUCtrl  = 3'b001;
-                ImmSrc   = 3'b010;
-                if (Less || !Zero) begin
-                    PCWrite  = 1;
-                    PCSource = 2'b10;
-                end
+                // comparar rs1 (A) vs rs2 (B) para activar la bandera ZERO y LESS
+                ALUSrcA = 1;        // A = rs1
+                ALUSrcB = 2'b00;    // B = rs2
+                ALUCtrl = 3'b001;   // SUB (para determinar las banderas)
+                ImmSrc  = 3'b010;   // B-type immediate
+ 
+                case (instr[14:12])
+                    3'b001: begin // BNE (Branch not equal)
+                        if (!Zero) begin //Si la resta da distinto a 0, no son iguales => se hace el branch
+                            PCWrite  = 1;
+                            PCSource = 2'b10;
+                        end
+                    end
+ 
+                    3'b101: begin // BGE (Branch greater or equal)
+                        if (!Less) begin //Si se marca la bandera de menor, es porque no debería saltar, por eso el "!"
+                            PCWrite  = 1;
+                            PCSource = 2'b10;
+                        end
+                    end
+                endcase
             end
+            
+            //Si no se da ninguna de las condiciones de branch, no se activa PCWrite y por lo tanto no hay  branch 
 
             // -------------------------
             // JUMP (jal)
             // -------------------------
             S_JUMP: begin
-                RegWrite  = 1;
-                ResultSrc = 2'b10; // PC+4
-                PCWrite   = 1;
-                PCSource  = 2'b10;
-                ImmSrc    = 3'b100;
+                ImmSrc   = 3'b100;
+                PCSource = 2'b10;
+                PCWrite  = 1;
+ 
+                if (instr[11:7] != 5'd0) begin
+                    RegWrite  = 1;
+                    ResultSrc = 2'b10; // PC+4
+                end
             end
 
         endcase
