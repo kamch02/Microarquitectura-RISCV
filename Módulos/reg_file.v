@@ -11,21 +11,28 @@ module reg_file (
     output [31:0] rd2
 );
 
-    // 32 registers of 32 bits
+    // 32 registros de 32 bits
     reg [31:0] regs [0:31];
+    
+    //Inicialización de los registros
     integer j;
     initial begin
         for (j=0; j<32; j=j+1) regs[j] = 32'b0;
-        regs[2] = 32'h00000100; // x2 = sp en una zona válida
+        regs[2] = 32'h00000100; // inicializa el stack pointer en la posición 256, este va a ir bajando conforme haya más y más registros utilizados
     end
-    // Read ports (combinational)
-    assign rd1 = (rs1 == 5'd0) ? 32'b0 : regs[rs1];
+    
+    
+    // Lectura para los puertos
+    
+    //Asiganción de los puertos de lectura
+    assign rd1 = (rs1 == 5'd0) ? 32'b0 : regs[rs1]; 
     assign rd2 = (rs2 == 5'd0) ? 32'b0 : regs[rs2];
 
-    // Write port (synchronous)
+    // Puerto de escritura
     always @(posedge clk) begin
         if (RegWrite && (rd != 5'd0))
             regs[rd] <= wd;
     end
 
 endmodule
+
