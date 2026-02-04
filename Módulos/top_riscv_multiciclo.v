@@ -1,44 +1,44 @@
 `timescale 1ns / 1ps
-
+ 
 module top_riscv_multiciclo (
     input clk,
     input reset
 );
-
+ 
     // -------------------------
     // Program Counter
     // -------------------------
     reg [31:0] PC;
     wire [31:0] PC_next;
-
+ 
     // -------------------------
     // Instruction Register
     // -------------------------
     reg [31:0] IR;
-
+ 
     // -------------------------
     // Memories
     // -------------------------
     wire [31:0] instr;
     wire [31:0] mem_data;
-
+ 
     // -------------------------
     // Register file
     // -------------------------
     wire [31:0] RD1, RD2;
-
+ 
     // -------------------------
     // ALU
     // -------------------------
     reg  [31:0] ALU_A, ALU_B;
     wire [31:0] ALU_result;
     wire Zero, Less;
-
+ 
     // -------------------------
-    // Sign extension
+    // Immediate
     // -------------------------
     wire [31:0] ImmExt;
-
+ 
     // -------------------------
     // Control signals
     // -------------------------
@@ -50,34 +50,32 @@ module top_riscv_multiciclo (
     wire [1:0] ResultSrc;
     wire [2:0] ImmSrc;
     wire [1:0] PCSource;
-
+ 
     // -------------------------
     // Internal registers (multicycle)
     // -------------------------
     reg [31:0] A, B, ALUOut, MDR;
-
+ 
+    // PC saved at FETCH for PC-relative
+    reg [31:0] PC_fetch;
+ 
     // -------------------------
     // PC logic
     // -------------------------
+    wire [31:0] PC_branch_target;
+    assign PC_branch_target = $signed(PC_fetch) + $signed(ImmExt);
+ 
     assign PC_next = (PCSource == 2'b00) ? ALU_result :
-                     (PCSource == 2'b10) ? ALUOut :
+                     (PCSource == 2'b10) ? PC_branch_target :
                      PC;
-
+ 
     always @(posedge clk or posedge reset) begin
         if (reset)
             PC <= 32'b0;
         else if (PCWrite)
             PC <= PC_next;
     end
-
-    // -------------------------
-    // Instruction Register
-    // -------------------------
-    always @(posedge clk) begin
-        if (IRWrite)
-            IR <= instr;
-    end
-
+ 
     // -------------------------
     // Instruction memory
     // -------------------------
@@ -85,7 +83,20 @@ module top_riscv_multiciclo (
         .addr(PC),
         .instr(instr)
     );
-
+ 
+    // -------------------------
+    // Instruction Register + PC_fetch latch (FETCH only)
+    // -------------------------
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            IR       <= 32'b0;
+            PC_fetch <= 32'b0;
+        end else if (IRWrite) begin
+            IR       <= instr;
+            PC_fetch <= PC;      // PC de la instrucción actual (base PC-relative)
+        end
+    end
+ 
     // -------------------------
     // Register file
     // -------------------------
@@ -98,20 +109,24 @@ module top_riscv_multiciclo (
         .wd(
             (ResultSrc == 2'b00) ? ALUOut :
             (ResultSrc == 2'b01) ? MDR :
-            PC + 4
-        ),
+            (PC_fetch + 32'd4)),
         .rd1(RD1),
         .rd2(RD2)
     );
-
+ 
     // -------------------------
     // A & B registers
     // -------------------------
-    always @(posedge clk) begin
-        A <= RD1;
-        B <= RD2;
+    always @(posedge clk or posedge reset) begin
+        if (reset) begin
+            A <= 32'b0;
+            B <= 32'b0;
+        end else begin
+            A <= RD1;
+            B <= RD2;
+        end
     end
-
+ 
     // -------------------------
     // Immediate generator
     // -------------------------
@@ -120,13 +135,13 @@ module top_riscv_multiciclo (
         .ImmSrc(ImmSrc),
         .imm_ext(ImmExt)
     );
-
+ 
     // -------------------------
     // ALU input mux
     // -------------------------
     always @(*) begin
         ALU_A = (ALUSrcA) ? A : PC;
-
+ 
         case (ALUSrcB)
             2'b00: ALU_B = B;
             2'b01: ALU_B = 32'd4;
@@ -134,7 +149,7 @@ module top_riscv_multiciclo (
             default: ALU_B = B;
         endcase
     end
-
+ 
     // -------------------------
     // ALU
     // -------------------------
@@ -146,14 +161,17 @@ module top_riscv_multiciclo (
         .Zero(Zero),
         .Less(Less)
     );
-
+ 
     // -------------------------
     // ALUOut register
     // -------------------------
-    always @(posedge clk) begin
-        ALUOut <= ALU_result;
+    always @(posedge clk or posedge reset) begin
+        if (reset)
+            ALUOut <= 32'b0;
+        else
+            ALUOut <= ALU_result;
     end
-
+ 
     // -------------------------
     // Data memory
     // -------------------------
@@ -166,14 +184,17 @@ module top_riscv_multiciclo (
         .write_data(B),
         .read_data(mem_data)
     );
-
+ 
     // -------------------------
     // MDR register
     // -------------------------
-    always @(posedge clk) begin
-        MDR <= mem_data;
+    always @(posedge clk or posedge reset) begin
+        if (reset)
+            MDR <= 32'b0;
+        else if (MemRead)
+            MDR <= mem_data;
     end
-
+ 
     // -------------------------
     // Control Unit
     // -------------------------
@@ -196,6 +217,7 @@ module top_riscv_multiciclo (
         .ImmSrc(ImmSrc),
         .PCSource(PCSource)
     );
-
+ 
 endmodule
+
 
